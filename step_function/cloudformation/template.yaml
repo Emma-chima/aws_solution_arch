@@ -1,0 +1,136 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Tea making workflow.
+Resources:
+  # IAM Role for Lambda function
+  LambdaTeaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaExecutionPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+  
+  # IAM Role for Step Function
+  StepFunctionExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: StepFunctionExecutionPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: Lambda:InvokeFunction
+                Resource: "*"
+
+  # BoilWater Function 1
+  BoilWaterFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.13
+      Role: !GetAtt LambdaTeaExecutionRole.Arn
+      Handler: index.lambda_handler
+      Code:
+        ZipFile: |
+          def lambda_handler(event, context):
+              print("Boiling water...")
+              return "Water boiled!"
+      Timeout: 30
+
+  # AddTeaLeavesFunction 2          
+  AddTeaLeavesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.13
+      Role: !GetAtt LambdaTeaExecutionRole.Arn
+      Handler: index.lambda_handler
+      Code:
+        ZipFile: |
+          def lambda_handler(event, context):
+              print("Adding tea leaves...")
+              return "Tea leaves added!"
+      Timeout: 30
+
+  # AddMilkSugarFunction 3
+  AddMilkSugarFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.13
+      Role: !GetAtt LambdaTeaExecutionRole.Arn
+      Handler: index.lambda_handler
+      Code:
+        ZipFile: |
+          def lambda_handler(event, context):
+              print("Adding milk and sugar...")
+              return "Milk and sugar added!"
+      Timeout: 30
+
+  # MakeTeaFunction 4
+  ServeTeaFunction:
+    Type: AWS::Lambda::Function 
+    Properties:
+      Runtime: python3.13
+      Role: !GetAtt LambdaTeaExecutionRole.Arn
+      Handler: index.lambda_handler
+      Code:
+        ZipFile: |
+          def lambda_handler(event, context):
+              print("Serving tea...")
+              return "Tea served!"
+      Timeout: 30
+   
+  # Step Function Definition
+  TeaMakingStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      DefinitionString:
+        Fn::Sub: |
+          {
+            "Comment": "Tea making workflow",
+            "StartAt": "BoilWater",
+            "States": {
+              "BoilWater": {
+                "Type": "Task",
+                "Resource": "${BoilWaterFunction.Arn}",
+                "Next": "AddTeaLeaves"
+              },
+              "AddTeaLeaves": {
+                "Type": "Task",
+                "Resource": "${AddTeaLeavesFunction.Arn}",
+                "Next": "AddMilkSugar"
+              },
+              "AddMilkSugar": {
+                "Type": "Task",
+                "Resource": "${AddMilkSugarFunction.Arn}",
+                "Next": "ServerTea"
+              },
+              "ServerTea": {
+                "Type": "Task",
+                "Resource": "${ServeTeaFunction.Arn}",
+                "End": true
+              }
+            }
+          }
+      RoleArn: !GetAtt StepFunctionExecutionRole.Arn
+      StateMachineName: TeaMakingStateMachine

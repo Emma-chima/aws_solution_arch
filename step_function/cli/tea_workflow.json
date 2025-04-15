@@ -1,0 +1,27 @@
+{
+    "Comment": "Tea Making Workflow",
+    "StartAt": "Boil Water",
+    "States": {
+      "Boil Water": {
+        "Type": "Task",
+        "Resource": "arn:aws:lambda:eu-north-1[account-id]:function:BoilWaterFunction",
+        "Next": "Add Tea Leaves"
+      },
+      "Add Tea Leaves": {
+        "Type": "Task",
+        "Resource": "arn:aws:lambda:eu-north-1[account-id]:function:AddTeaFunction",
+        "Next": "Add Milk and Sugar"
+      },
+      "Add Milk and Sugar": {
+        "Type": "Task",
+        "Resource": "arn:aws:lambda:eu-north-1[account-id]:function:AddMilkSugarFunction",
+        "Next": "Serve Tea"
+      },
+      "Serve Tea": {
+        "Type": "Task",
+        "Resource": "arn:aws:lambda:eu-north-1[account-id]:function:ServeTeaFunction",
+        "End": true
+      }
+    }
+  }
+  
