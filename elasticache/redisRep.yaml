@@ -1,0 +1,103 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template to create an ElastiCache Redis cluster and an EC2 instance.
+Resources:
+
+  RedisSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      CacheSubnetGroupName: 'redisSubnet'
+      Description: 'Redis cluster subnet group for VPC'
+      SubnetIds:
+        - 'subnet-0a0267172fcf7cdd7'
+        - 'subnet-05320f17ebce48a8b'
+        - 'subnet-09f5243857604d788'
+
+  RedisCacheCluster:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      ReplicationGroupId: 'rediscluster'
+      ReplicationGroupDescription: 'Redis cluster'
+      NumNodeGroups: 1
+      ReplicasPerNodeGroup: 0
+      AutomaticFailoverEnabled: false        
+      CacheNodeType: 'cache.t3.micro'
+      Engine: 'redis'
+      EngineVersion: '7.1'
+      CacheParameterGroupName: 'default.redis7'
+      CacheSubnetGroupName: !Ref RedisSubnetGroup
+      PreferredCacheClusterAZs:
+        - 'eu-north-1b'
+      SecurityGroupIds:
+        - 'sg-0bf63b9e2cbe5fb3f'
+      Port: 6379
+      AutoMinorVersionUpgrade: false
+      AtRestEncryptionEnabled: true
+      TransitEncryptionEnabled: true
+      TransitEncryptionMode: required
+      NetworkType: ipv4
+      IpDiscovery: ipv4
+  
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      IamInstanceProfile: EC2Role
+      ImageId: ami-0c1ac8a41498c1a9c
+      InstanceType: t3.micro
+      SecurityGroupIds: 
+        - 'sg-0bf63b9e2cbe5fb3f'
+      Tags: 
+        - Key: Name
+          Value: RedisEC2Instance
+      UserData: 
+        Fn::Base64:
+          Fn::Sub: |
+              #!/bin/bash
+              sudo apt-get install lsb-release curl gpg
+              curl -fsSL https://packages.redis.io/gpg | sudo gpg --dearmor -o /usr/share/keyrings/redis-archive-keyring.gpg
+              sudo chmod 644 /usr/share/keyrings/redis-archive-keyring.gpg
+              echo "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://packages.redis.io/deb $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/redis.list
+              sudo apt-get update -y
+              sudo apt-get install redis -y
+              sudo apt-get install python3 -y
+              sudo apt install python3-redis -y
+
+              sudo systemctl enable redis-server
+              sudo systemctl start redis-server
+
+              cat > /home/ubuntu/redis_test.py << EOF
+              import time
+              import redis
+
+              cache = redis.StrictRedis(
+                  host='master.rediscluster.5sr0mz.eun1.cache.amazonaws.com',
+                  port=6379,
+                  decode_responses=True,
+                  ssl=True
+              )
+
+              def get_data_from_db(user_id):
+                  print(f"Fetching data for user {user_id} from slow database...")
+                  time.sleep(3)
+                  return f"UserData({user_id})"
+
+              def get_user_profile(user_id):
+                  cache_key = f"user:{user_id}:profile"
+                  cached_data = cache.get(cache_key)
+
+                  if cached_data:
+                      print("CACHE HIT ✅ — Retrieved from Redis")
+                      return cached_data
+                  else:
+                      print("CACHE MISS ❌ — Data not in Redis")
+                      data = get_data_from_db(user_id)
+                      print("Storing in Redis cache for next time ⏳")
+                      cache.set(cache_key, data, ex=30)
+                      return data
+
+              print("First request (expect delay):")
+              print(get_user_profile(1))
+
+              print("\\nSecond request (fast, from cache):")
+              print(get_user_profile(1))
+              EOF
+                    
