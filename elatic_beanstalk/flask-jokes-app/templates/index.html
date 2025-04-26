@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Flask Jokes App</title>
+</head>
+<body>
+    <h1>Welcome to the Flask Jokes App</h1>
+    <h2>Here's a joke for you:</h2>
+    <p>{{ joke }}</p>
+
+    <h3>Add Your Own Joke</h3>
+    <form action="{{ url_for('add_joke') }}" method="post">
+        <input type="text" name="new_joke" placeholder="Enter your joke here" required>
+        <button type="submit">Add Joke</button>
+    </form>
+</body>
+</html>
